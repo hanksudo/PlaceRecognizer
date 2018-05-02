@@ -10,36 +10,32 @@ import UIKit
 import AVFoundation
 import Vision
 
-class ViewController: UIViewController, AVCapturePhotoCaptureDelegate {
+class ViewController: UIViewController, UIGestureRecognizerDelegate, AVCapturePhotoCaptureDelegate, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
     
     var session: AVCaptureSession!
     var camera: AVCaptureDevice!
     var input: AVCaptureDeviceInput!
     var output: AVCapturePhotoOutput!
     var textView: UITextView!
+    var imageView: UIImageView!
+    var previewLayer: AVCaptureVideoPreviewLayer!
+    
+    var swipeGesture: UISwipeGestureRecognizer!
+    var tapGesture: UITapGestureRecognizer!
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        
-        let recognizeButton = UIButton(frame: CGRect(x: 0, y: 0, width: 120, height: 50))
-        recognizeButton.backgroundColor = UIColor.black
-        recognizeButton.layer.masksToBounds = true
-        recognizeButton.setTitle("Recognize", for: .normal)
-        recognizeButton.layer.cornerRadius = 20.0
-        recognizeButton.layer.position = CGPoint(x: self.view.bounds.width/2, y:self.view.bounds.height-50)
-        recognizeButton.addTarget(self, action: #selector(takePhoto), for: .touchUpInside)
-        self.view.addSubview(recognizeButton)
-        
-        // MARK: recognize result
-        
-        textView = UITextView(frame: CGRect(x:10, y:50, width:self.view.frame.width - 20, height:500))
-        textView.backgroundColor = UIColor(red: 0.9, green: 0.9, blue: 1, alpha: 0.3)
-        textView.text = ""
-        textView.isSelectable = false
-        self.view.addSubview(textView)
     }
+
     
-    override func viewWillAppear(_ animated: Bool) {
+    @IBAction func goCamera(_ sender: UIButton) {
+        swipeGesture = UISwipeGestureRecognizer(target: self, action: #selector(closeCamera))
+        tapGesture = UITapGestureRecognizer(target: self, action: #selector(takePhoto))
+        tapGesture.delegate = self
+        swipeGesture.delegate = self
+        self.view.addGestureRecognizer(tapGesture)
+        self.view.addGestureRecognizer(swipeGesture)
+        
         session = AVCaptureSession()
         
         camera = AVCaptureDevice.DiscoverySession.init(deviceTypes: [.builtInWideAngleCamera], mediaType: .video, position: .back).devices.first
@@ -54,15 +50,61 @@ class ViewController: UIViewController, AVCapturePhotoCaptureDelegate {
             session.addOutput(output)
         }
         
-        let previewLayer = AVCaptureVideoPreviewLayer.init(session: session)
+        previewLayer = AVCaptureVideoPreviewLayer.init(session: session)
         previewLayer.frame = self.view.bounds
         previewLayer.videoGravity = .resizeAspectFill
         
         self.view.layer.addSublayer(previewLayer)
         
         session.startRunning()
+        
+        textView = UITextView(frame: CGRect(x:10, y:50, width:self.view.frame.width - 20, height:500))
+        textView.backgroundColor = UIColor(red: 0.9, green: 0.9, blue: 1, alpha: 0.3)
+        textView.text = ""
+        textView.isSelectable = false
+        self.view.addSubview(textView)
+    }
+    @IBAction func selectPhoto(_ sender: UIButton) {
+        let picker = UIImagePickerController()
+        picker.delegate = self
+        picker.allowsEditing = true
+        picker.sourceType = .savedPhotosAlbum
+        self.present(picker, animated: true, completion: nil)
+    }
+    
+    func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [String : Any]) {
+        imageView = UIImageView(frame: CGRect(x:10, y:50, width:self.view.frame.width - 20, height:500))
+        imageView.backgroundColor = UIColor(red: 0.9, green: 0.9, blue: 1, alpha: 0.3)
+        self.view.addSubview(imageView)
+        
+        textView = UITextView(frame: CGRect(x:10, y:50, width:self.view.frame.width - 20, height:500))
+        textView.backgroundColor = UIColor(red: 0.9, green: 0.9, blue: 1, alpha: 0.3)
+        textView.text = ""
+        textView.isSelectable = false
+        self.view.addSubview(textView)
+        
+        imageView.image = info[UIImagePickerControllerEditedImage] as? UIImage
+        self.dismiss(animated: true, completion: nil)
+        
+        self.recognize(image: imageView.image!)
     }
 
+    @objc func closeCamera() {
+        textView.removeFromSuperview()
+        previewLayer.removeFromSuperlayer()
+        self.view.removeGestureRecognizer(tapGesture)
+        self.view.removeGestureRecognizer(swipeGesture)
+        
+        session.stopRunning()
+        for output in session.outputs {
+            session.removeOutput(output)
+        }
+        for input in session.inputs {
+            session.removeInput(input)
+        }
+        session = nil
+        camera = nil
+    }
     @objc func takePhoto(sender: UIButton) {
         let settings = AVCapturePhotoSettings()
         settings.flashMode = .auto
