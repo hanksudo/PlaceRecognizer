@@ -83,7 +83,9 @@ class ViewController: UIViewController, UIGestureRecognizerDelegate, AVCapturePh
         textView.isSelectable = false
         self.view.addSubview(textView)
         
-        imageView.image = info[UIImagePickerControllerEditedImage] as? UIImage
+        if let image = info[UIImagePickerControllerEditedImage] as? UIImage {
+            imageView.image = image
+        }
         self.dismiss(animated: true, completion: nil)
         
         self.recognize(image: imageView.image!)
